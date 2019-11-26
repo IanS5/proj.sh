@@ -225,6 +225,10 @@ proj_visit() {
     cd "$wd"
 }
 
+proj_list() {
+    ls -1 "$PROJ_REPO"
+}
+
 case "$proj_action" in
     h|help|\?|-h|--help)
         proj_help
@@ -244,4 +248,7 @@ case "$proj_action" in
 
     d|down|download)
         proj_sync down "$2" "$3";;
+    
+    ls|list)
+        proj_list;;
 esac
