@@ -122,6 +122,12 @@ proj_hist_id() {
     proj_print "proj_${project}.$shell_name"
 }
 
+proj_fish_hist_id() {
+    # fish has strict requirements on how history files can be identified
+    # to avoid that just md5sum the history ID
+    proj_hist_id "$1" "$2" | md5sum | cut -d '-' -f 1 | tr -d '[:space:]'
+}
+
 proj_create() {
     project="$1"
     project_path="$(proj_path_of "$project")"
@@ -189,7 +195,6 @@ proj_sync() {
     proj_excluded "$project_path" >"$exclude_file_path"
 
     remote_path="$remote:$PROJ_REMOTE_ROOT/$project"
-    exclude="$(proj_excluded "$project_path")"
 
     proj_debug "\$remote_path=$remote_path"
     proj_debug "\$exclude_file_path=$exclude_file_path"
@@ -231,11 +236,17 @@ proj_visit() {
         proj_fatal "could not determine system shell, please set \$SHELL"
     fi
 
-    history_id="$(proj_hist_id "$project" "$shell")"
-    proj_debug "\$history_id = $history_id"
+    # set all history variables here, just in case the shell is identified wrong
+    #  some one could always `mv /bin/fish /bin/bash`
+    # so we (kinda) account for that by setting all variables regardless of shell
+    fish_history="$(proj_fish_hist_id "$project" "$shell")"
+    HISTFILE="$PROJ_CACHE/history_$(proj_hist_id "$project" "$shell")"
 
-    export fish_history="$(echo "$history_id" | md5sum | cut -d '-' -f 1 | tr -d '[[:space:]]')"
-    export HISTFILE="$PROJ_CACHE/history_$history_id"
+    proj_debug "\$HISTFILE=$HISTFILE"
+    proj_debug "\$fish_history=$fish_history"
+
+    export fish_history
+    export HISTFILE
     export PROJ_CURRENT_PROJECT_BASE="$project_path"
     export PROJ_CURRENT_PROJECT_NAME="$project"
 
