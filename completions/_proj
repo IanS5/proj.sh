@@ -1,0 +1,32 @@
+#compdef _proj proj
+
+__get_projects() {
+    if [ -n "$PROJ_REPO" ]; then
+        proj list
+    fi
+}
+
+
+__get_remotes() {
+    if command -v rclone >/dev/null; then
+        rclone listremotes
+    fi
+}
+
+__remotes() {
+    local -a remotes
+    remotes=(${(fo)"$(__get_remotes)"})
+    _describe 'remotes' remotes
+}
+
+__projects() {
+    local -a projects
+    projects=(${(fo)"$(__get_projects)"})
+    _describe 'projects' projects
+}
+
+
+# TODO: only expand projects and remotes when the command will actually use them
+_arguments "1:command:(help create remove visit upload download list)" \
+           "2:projects:__projects" \
+           "3:remotes:__remotes"
