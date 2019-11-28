@@ -56,6 +56,7 @@ proj_help() {
     echo "  $proj_arg0 COMMAND PROJECT <REMOTE>"
     echo ""
     echo "COMMANDS"
+    echo "  help     - display this message"
     echo "  visit    - open a new shell instance in an existing project"
     echo "  create   - create a new project"
     echo "  remove   - delete the project folder"
@@ -85,25 +86,29 @@ proj_binary() {
     while read -r response; do
         response="${response:="$default"}"
         case "$response" in
-            [Yy]|[Yy][Ee][Ss])
-                return 0;;
-            [Nn]|[Nn][Oo])
-                return 1;;
+            [Yy] | [Yy][Ee][Ss])
+                return 0
+                ;;
+            [Nn] | [Nn][Oo])
+                return 1
+                ;;
             *)
                 proj_print " $yn "
+                ;;
         esac
     done
 }
-
 
 proj_path_of() {
     project="$1"
 
     case "$project" in
         "")
-            proj_fatal "project name is required!";;
+            proj_fatal "project name is required!"
+            ;;
         */*)
-            proj_fatal "project names may not include a slash";;
+            proj_fatal "project names may not include a slash"
+            ;;
     esac
 
     proj_print "$PROJ_REPO/$project"
@@ -120,7 +125,7 @@ proj_hist_id() {
 proj_create() {
     project="$1"
     project_path="$(proj_path_of "$project")"
-    
+
     if [ -d "$project_path" ]; then
         proj_print "$project already exists, overwrite it?"
         if proj_binary "n"; then
@@ -136,9 +141,11 @@ proj_create() {
 }
 
 proj_remove() {
+    # TODO: optionally remove on remotes too
+
     project="$1"
     project_path="$(proj_path_of "$project")"
-    
+
     if [ ! -d "$project_path" ]; then
         proj_fatal "project '$project' does not exist"
     fi
@@ -152,6 +159,18 @@ proj_remove() {
     fi
 }
 
+proj_excluded() {
+    path="$1"
+
+    if proj_has git && [ -d "$path/.git" ]; then
+        wd="$PWD"
+        cd "$path"
+        # git ls-files --others --ignored --exclude-standard
+        git ls-files --others --ignored --exclude-standard --directory
+        cd "$wd"
+    fi
+}
+
 proj_sync() {
     if ! proj_has rclone; then
         proj_fatal "rclone is required for syncing (see: https://rclone.org)"
@@ -161,25 +180,36 @@ proj_sync() {
     project="$2"
     remote="${3:-"$PROJ_DEFAULT_REMOTE"}"
     project_path="$(proj_path_of "$project")"
+    exclude_file_path="$PROJ_CACHE/exclude_$project"
 
     if [ -z "$remote" ]; then
         proj_fatal "no remote specified, and \$PROJ_DEFAULT_REMOTE is unset."
     fi
-    
+
+    proj_excluded "$project_path" >"$exclude_file_path"
+
     remote_path="$remote:$PROJ_REMOTE_ROOT/$project"
+    exclude="$(proj_excluded "$project_path")"
+
     proj_debug "\$remote_path=$remote_path"
+    proj_debug "\$exclude_file_path=$exclude_file_path"
 
     case "$direction" in
-        up) 
+        up)
             proj_info "sending to remote '$remote'"
-            rclone sync "$project_path" "$remote_path" --progress;;
+            rclone sync "$project_path" "$remote_path" --progress --exclude-from="$exclude_file_path"
+            ;;
         down)
             proj_info "pulling from remote '$remote'"
-            rclone sync "$remote_path" "$project_path" --progress;;
+            rclone sync "$remote_path" "$project_path" --progress --exclude-from="$exclude_file_path"
+            ;;
         *)
-            proj_fatal "expecting 'up' or 'down' for direction. \$direction='$direction' \$project='$project' \$remote='$remote'";;
+            rm "$exclude_file_path"
+            proj_fatal "expecting 'up' or 'down' for direction. \$direction='$direction' \$project='$project' \$remote='$remote'"
+            ;;
     esac
-    
+
+    rm "$exclude_file_path"
     proj_info "local project '$project' synced with '$remote'"
 
 }
@@ -193,6 +223,7 @@ proj_visit() {
     fi
 
     if [ -n "$SHELL" ]; then
+        # TODO: check shell is callable here
         shell="$SHELL"
     elif proj_has sh; then
         shell="sh"
@@ -200,11 +231,10 @@ proj_visit() {
         proj_fatal "could not determine system shell, please set \$SHELL"
     fi
 
-
     history_id="$(proj_hist_id "$project" "$shell")"
     proj_debug "\$history_id = $history_id"
 
-    export fish_history="$history_id"
+    export fish_history="$(echo "$history_id" | md5sum | cut -d '-' -f 1 | tr -d '[[:space:]]')"
     export HISTFILE="$PROJ_CACHE/history_$history_id"
     export PROJ_CURRENT_PROJECT_BASE="$project_path"
     export PROJ_CURRENT_PROJECT_NAME="$project"
@@ -230,25 +260,32 @@ proj_list() {
 }
 
 case "$proj_action" in
-    h|help|\?|-h|--help)
+    h | help | \? | -h | --help)
         proj_help
-        exit 0;;
-    
-    c|n|mk|new|create|make)
-        proj_create "$2";;
+        exit 0
+        ;;
 
-    r|rm|rem|del|delete|remove)
-        proj_remove "$2";;
-    
-    v|visit)
-        proj_visit "$2";;
-    
-    u|up|upload)
-        proj_sync up "$2" "$3";;
+    c | n | mk | new | create | make)
+        proj_create "$2"
+        ;;
 
-    d|down|download)
-        proj_sync down "$2" "$3";;
-    
-    ls|list)
-        proj_list;;
+    r | rm | rem | del | delete | remove)
+        proj_remove "$2"
+        ;;
+
+    v | visit)
+        proj_visit "$2"
+        ;;
+
+    u | up | upload)
+        proj_sync up "$2" "$3"
+        ;;
+
+    d | down | download)
+        proj_sync down "$2" "$3"
+        ;;
+
+    ls | list)
+        proj_list
+        ;;
 esac
