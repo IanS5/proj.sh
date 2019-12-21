@@ -171,8 +171,8 @@ proj_excluded() {
     if proj_has git && [ -d "$path/.git" ]; then
         wd="$PWD"
         cd "$path"
-        # git ls-files --others --ignored --exclude-standard
-        git ls-files --others --ignored --exclude-standard --directory
+        git ls-files --others --ignored --exclude-standard --directory | sed 's/\/$/\/\*\*/'
+        git ls-files --others --ignored --exclude-standard
         cd "$wd"
     fi
 }
