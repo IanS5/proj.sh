@@ -68,6 +68,7 @@ proj_help() {
     echo "  PROJ_CACHE          - path to the proj cache (mostly used for history files) [default: ~/.cache/proj]"
     echo "  PROJ_REMOTE_ROOT    - base path to use on remote targets [default: /proj]"
     echo "  PROJ_DEFAULT_REMOTE - rclone remote to use if <REMOTE> is unset [default: first remote from 'rclone listremotes']"
+    echo "  PROJ_SHELL          - shell to call when visiting a project. [fallback: \$SHELL, sh]"
 
 }
 
@@ -227,13 +228,14 @@ proj_visit() {
         proj_fatal "project '$project' does not exist"
     fi
 
-    if [ -n "$SHELL" ]; then
-        # TODO: check shell is callable here
+    if [ -n "$PROJ_SHELL" ] && proj_has "$PROJ_SHELL"; then
+        shell="$PROJ_SHELL"
+    elif [ -n "$SHELL" ] && proj_has "$SHELL"; then
         shell="$SHELL"
     elif proj_has sh; then
         shell="sh"
     else
-        proj_fatal "could not determine system shell, please set \$SHELL"
+        proj_fatal "could not determine system shell, please set \$PROJ_SHELL"
     fi
 
     # set all history variables here, just in case the shell is identified wrong
